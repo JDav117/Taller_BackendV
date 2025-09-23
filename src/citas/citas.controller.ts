@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Put, Body, Param } from '@nestjs/common';
 import { CitasService } from './citas.service';
 import { Cita } from './Entity/cita.entity';
 
@@ -14,6 +14,11 @@ export class CitasController {
   @Get()
   obtenerTodas() {
     return this.citasService.obtenerTodas();
+  }
+
+  @Put(':id')
+  actualizar(@Param('id') id: number, @Body() cita: Cita) {
+    return this.citasService.actualizarCita(Number(id), cita);
   }
 
   @Delete(':id')
