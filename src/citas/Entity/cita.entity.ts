@@ -15,5 +15,8 @@ export class Cita {
   pacienteId: number;
 
   @Column()
+  usuarioId: number;
+
+  @Column()
   medicoId: number;
 }

@@ -16,4 +16,7 @@ export class Medico {
 
   @Column()
   email: string;
+
+  @Column({ default: 'ACTIVO' })
+  estado: string; // ACTIVO | INACTIVO
 }
