@@ -4,7 +4,6 @@ dotenv.config();
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PacientesModule } from './pacientes/pacientes.module';
 import { MedicosModule } from './medicos/medicos.module';
 import { CitasModule } from './citas/citas.module';
 
@@ -20,7 +19,6 @@ import { CitasModule } from './citas/citas.module';
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
       synchronize: true,
     }),
-    PacientesModule,
     MedicosModule,
     CitasModule,
   ],

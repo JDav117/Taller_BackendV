@@ -37,7 +37,7 @@ export class CreateCitaDto {
   @IsOptional()
   motivo?: string;
 
-  @ApiProperty({ example: 2, description: 'ID del usuario (paciente) que agenda la cita.' })
+  @ApiProperty({ example: 2, description: 'ID del usuario que agenda la cita.' })
   @IsInt()
   @IsNotEmpty()
   usuarioId: number;

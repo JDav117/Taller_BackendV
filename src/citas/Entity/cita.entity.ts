@@ -1,4 +1,5 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { EstadoCita } from '../dto/create-cita.dto';
 
 @Entity()
 export class Cita {
@@ -6,17 +7,23 @@ export class Cita {
   id: number;
 
   @Column()
-  fecha_hora: Date;
+  fecha: string; // YYYY-MM-DD
 
   @Column()
+  horaInicio: string; // HH:mm
+
+  @Column()
+  horaFin: string; // HH:mm
+
+  @Column({ type: 'text' })
   motivo: string;
-
-  @Column()
-  pacienteId: number;
 
   @Column()
   usuarioId: number;
 
   @Column()
   medicoId: number;
+
+  @Column({ type: 'enum', enum: EstadoCita, default: EstadoCita.PENDIENTE })
+  estado: EstadoCita;
 }

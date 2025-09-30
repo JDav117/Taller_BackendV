@@ -1,4 +1,4 @@
-import { Controller, Put, Get, Post, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Put, Get, Post, Delete, Param, Body, UseGuards, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -18,16 +18,18 @@ export class MedicosController {
   @ApiOperation({ summary: 'Crear un nuevo médico' })
   @ApiBody({ type: Medico })
   @ApiResponse({ status: 201, description: 'Médico creado exitosamente.' })
-  crear(@Body() medico: Medico) {
-    return this.medicosService.crearMedico(medico);
+  async crear(@Body() medico: Medico) {
+    const nuevoMedico = await this.medicosService.crearMedico(medico);
+    return { message: 'Médico creado exitosamente.', medico: nuevoMedico };
   }
 
   @Get()
   @Roles('admin')
   @ApiOperation({ summary: 'Obtener todos los médicos' })
   @ApiResponse({ status: 200, description: 'Listado de médicos.' })
-  obtenerTodos() {
-    return this.medicosService.obtenerTodos();
+  async obtenerTodos() {
+    const medicos = await this.medicosService.obtenerTodos();
+    return { message: 'Médicos obtenidos correctamente.', medicos };
   }
 
   @Delete(':id')
@@ -36,8 +38,13 @@ export class MedicosController {
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Médico eliminado.' })
   @ApiResponse({ status: 404, description: 'Médico no encontrado.' })
-  eliminar(@Param('id') id: number) {
-    return this.medicosService.eliminarMedico(Number(id));
+  async eliminar(@Param('id') id: number) {
+    const eliminado = await this.medicosService.eliminarMedico(Number(id));
+    if (eliminado) {
+      return { message: 'Médico eliminado correctamente.' };
+    } else {
+      throw new NotFoundException('No se pudo eliminar el médico.');
+    }
   }
 
   @Put(':id')
@@ -47,8 +54,9 @@ export class MedicosController {
   @ApiBody({ type: Medico })
   @ApiResponse({ status: 200, description: 'Médico actualizado.' })
   @ApiResponse({ status: 404, description: 'Médico no encontrado.' })
-  actualizar(@Param('id') id: number, @Body() medicoData: Medico) {
-    return this.medicosService.actualizar(id, medicoData);
+  async actualizar(@Param('id') id: number, @Body() medicoData: Medico) {
+    const medicoActualizado = await this.medicosService.actualizar(id, medicoData);
+    return { message: 'Médico actualizado correctamente.', medico: medicoActualizado };
   }
 
   @Get(':id')
@@ -57,7 +65,12 @@ export class MedicosController {
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Médico encontrado.' })
   @ApiResponse({ status: 404, description: 'Médico no encontrado.' })
-  obtenerPorId(@Param('id') id: number) {
-    return this.medicosService.obtenerPorId(Number(id));
+  async obtenerPorId(@Param('id') id: number) {
+    const medico = await this.medicosService.obtenerPorId(Number(id));
+    if (medico) {
+      return { message: 'Médico obtenido correctamente.', medico };
+    } else {
+      throw new NotFoundException('Médico no encontrado.');
+    }
   }
 }

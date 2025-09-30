@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Put, Body, Param, UseGuards, Req, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Put, Body, Param, UseGuards, Req, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiBody, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -18,20 +18,22 @@ export class CitasController {
   @ApiOperation({ summary: 'Crear una nueva cita médica' })
   @ApiBody({ type: Cita })
   @ApiResponse({ status: 201, description: 'Cita creada exitosamente.' })
-  @ApiResponse({ status: 403, description: 'Solo puedes crear tus propias citas.' })
-  crear(@Body() cita: Cita, @Req() req) {
+  @ApiResponse({ status: 403, description: 'No tienes permisos para crear citas de otros usuarios.' })
+  async crear(@Body() cita: Cita, @Req() req) {
     if (cita.usuarioId !== req.user.userId) {
-      throw new ForbiddenException('Solo puedes crear tus propias citas.');
+      throw new ForbiddenException('No tienes permisos para crear citas de otros usuarios.');
     }
-    return this.citasService.crearCita(cita);
+    const nuevaCita = await this.citasService.crearCita(cita);
+    return { message: 'Cita creada exitosamente.', cita: nuevaCita };
   }
 
   @Get()
   @Roles('usuario')
   @ApiOperation({ summary: 'Obtener todas las citas del usuario autenticado' })
   @ApiResponse({ status: 200, description: 'Listado de citas del usuario.' })
-  obtenerTodas(@Req() req) {
-    return this.citasService.obtenerTodasPorUsuario(req.user.userId);
+  async obtenerTodas(@Req() req) {
+    const citas = await this.citasService.obtenerTodasPorUsuario(req.user.userId);
+    return { message: 'Citas obtenidas correctamente.', citas };
   }
 
   @Put(':id')
@@ -40,8 +42,9 @@ export class CitasController {
   @ApiParam({ name: 'id', type: Number })
   @ApiBody({ type: Cita })
   @ApiResponse({ status: 200, description: 'Cita actualizada.' })
-  actualizar(@Param('id') id: number, @Body() cita: Cita, @Req() req) {
-    return this.citasService.actualizarCitaUsuario(Number(id), cita, req.user.userId);
+  async actualizar(@Param('id') id: number, @Body() cita: Cita, @Req() req) {
+    const citaActualizada = await this.citasService.actualizarCitaUsuario(Number(id), cita, req.user.userId);
+    return { message: 'Cita actualizada correctamente.', cita: citaActualizada };
   }
 
   @Delete(':id')
@@ -49,8 +52,13 @@ export class CitasController {
   @ApiOperation({ summary: 'Eliminar una cita médica por ID' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Cita eliminada.' })
-  eliminar(@Param('id') id: number, @Req() req) {
-    return this.citasService.eliminarCitaUsuario(Number(id), req.user.userId);
+  async eliminar(@Param('id') id: number, @Req() req) {
+    const eliminada = await this.citasService.eliminarCitaUsuario(Number(id), req.user.userId);
+    if (eliminada) {
+      return { message: 'Cita eliminada correctamente.' };
+    } else {
+      throw new NotFoundException('No se pudo eliminar la cita.');
+    }
   }
 
   @Get(':id')
@@ -64,6 +72,6 @@ export class CitasController {
     if (cita.usuarioId !== req.user.userId) {
       throw new ForbiddenException('No tienes permiso para ver esta cita.');
     }
-    return cita;
+    return { message: 'Cita obtenida correctamente.', cita };
   }
 }

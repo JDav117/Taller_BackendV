@@ -3,7 +3,7 @@ import { Repository } from 'typeorm';
 import { Cita } from './Entity/cita.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Medico } from '../medicos/Entity/medico.entity';
-import { Paciente } from '../pacientes/Entity/paciente.entity';
+import { EstadoCita } from './dto/create-cita.dto';
 
 @Injectable()
 export class CitasService {
@@ -17,26 +17,19 @@ export class CitasService {
    * - Duración mínima de 30 minutos
    * - Médico debe estar activo
    * - No debe solaparse con otra cita
-   * - Usuario (paciente) debe existir
+  * - Usuario debe existir
    */
   async crearCita(cita: Cita): Promise<Cita> {
-    // Validar existencia de usuarioId
-    const pacienteRepo = this.citaRepository.manager.getRepository(Paciente);
-    const paciente = await pacienteRepo.findOneBy({ id: cita.usuarioId });
-    if (!paciente) {
-      throw new NotFoundException('El usuario (paciente) no existe.');
+    // Validar horario mínimo 30 minutos y formato
+    const [hIni, mIni] = cita.horaInicio.split(':').map(Number);
+    const [hFin, mFin] = cita.horaFin.split(':').map(Number);
+    const ini = hIni * 60 + mIni;
+    const fin = hFin * 60 + mFin;
+    if (fin - ini < 30) {
+      throw new BadRequestException('La cita debe durar al menos 30 minutos.');
     }
-    // Validar horario mínimo 30 minutos
-    const horaInicio = cita['horaInicio'] || (cita as any).horaInicio;
-    const horaFin = cita['horaFin'] || (cita as any).horaFin;
-    if (horaInicio && horaFin) {
-      const [hIni, mIni] = horaInicio.split(':').map(Number);
-      const [hFin, mFin] = horaFin.split(':').map(Number);
-      const ini = hIni * 60 + mIni;
-      const fin = hFin * 60 + mFin;
-      if (fin - ini < 30) {
-        throw new BadRequestException('La cita debe durar al menos 30 minutos.');
-      }
+    if (fin <= ini) {
+      throw new BadRequestException('La hora de fin debe ser mayor que la hora de inicio.');
     }
 
     // Validar médico activo
@@ -52,10 +45,10 @@ export class CitasService {
     // Validar solapamiento de citas
     const citasSolapadas = await this.citaRepository.createQueryBuilder('cita')
       .where('cita.medicoId = :medicoId', { medicoId: cita.medicoId })
-      .andWhere('cita.fecha_hora = :fecha', { fecha: cita.fecha_hora })
-      .andWhere('((:horaInicio BETWEEN cita.horaInicio AND cita.horaFin) OR (:horaFin BETWEEN cita.horaInicio AND cita.horaFin))', {
-        horaInicio,
-        horaFin,
+      .andWhere('cita.fecha = :fecha', { fecha: cita.fecha })
+      .andWhere('((:horaInicio < cita.horaFin) AND (:horaFin > cita.horaInicio))', {
+        horaInicio: cita.horaInicio,
+        horaFin: cita.horaFin,
       })
       .getMany();
     if (citasSolapadas.length > 0) {
@@ -63,7 +56,10 @@ export class CitasService {
     }
 
     // Estado inicial de la cita
-    (cita as any).estado = 'PENDIENTE';
+    cita.estado = EstadoCita.PENDIENTE;
+    if (!cita.motivo || cita.motivo.trim() === '') {
+      throw new BadRequestException('El motivo de la cita es obligatorio.');
+    }
 
     return await this.citaRepository.save(cita);
   }
@@ -87,16 +83,13 @@ export class CitasService {
     if (!cita) {
       throw new NotFoundException(`Cita con id ${id} no encontrada`);
     }
-    // Validar existencia de usuarioId
-    const pacienteRepo = this.citaRepository.manager.getRepository(Paciente);
-    const paciente = await pacienteRepo.findOneBy({ id: citaData.usuarioId });
-    if (!paciente) {
-      throw new NotFoundException('El usuario (paciente) no existe.');
-    }
-    cita.fecha_hora = citaData.fecha_hora;
+    cita.fecha = citaData.fecha;
+    cita.horaInicio = citaData.horaInicio;
+    cita.horaFin = citaData.horaFin;
     cita.motivo = citaData.motivo;
-    cita.pacienteId = citaData.pacienteId;
     cita.medicoId = citaData.medicoId;
+    cita.usuarioId = citaData.usuarioId;
+    cita.estado = citaData.estado ?? cita.estado;
     return await this.citaRepository.save(cita);
   }
 
@@ -115,7 +108,10 @@ export class CitasService {
     }
     // Política: solo cancelar hasta 1 hora antes
     const ahora = new Date();
-    const fechaCita = new Date(cita.fecha_hora);
+    // Combinar fecha y horaInicio para obtener el Date de la cita
+    const [year, month, day] = cita.fecha.split('-').map(Number);
+    const [hIni, mIni] = cita.horaInicio.split(':').map(Number);
+    const fechaCita = new Date(year, month - 1, day, hIni, mIni);
     const minutosRestantes = (fechaCita.getTime() - ahora.getTime()) / (1000 * 60);
     if (minutosRestantes < 60) {
       throw new ConflictException('Solo se puede cancelar la cita hasta 1 hora antes de la hora agendada.');
@@ -135,7 +131,7 @@ export class CitasService {
     return cita;
   }
   async obtenerTodasPorUsuario(usuarioId: number): Promise<Cita[]> {
-    return await this.citaRepository.find({ where: { usuarioId } });
+  return await this.citaRepository.find({ where: { usuarioId } });
   }
 
   async actualizarCitaUsuario(id: number, citaData: Cita, usuarioId: number): Promise<Cita> {
@@ -143,9 +139,12 @@ export class CitasService {
     if (!cita) {
       throw new NotFoundException('No tienes permiso para modificar esta cita o no existe.');
     }
-    cita.fecha_hora = citaData.fecha_hora;
+    cita.fecha = citaData.fecha;
+    cita.horaInicio = citaData.horaInicio;
+    cita.horaFin = citaData.horaFin;
     cita.motivo = citaData.motivo;
     cita.medicoId = citaData.medicoId;
+    cita.estado = citaData.estado ?? cita.estado;
     return await this.citaRepository.save(cita);
   }
 
@@ -156,7 +155,9 @@ export class CitasService {
     }
     // Política: solo cancelar hasta 1 hora antes
     const ahora = new Date();
-    const fechaCita = new Date(cita.fecha_hora);
+    const [year, month, day] = cita.fecha.split('-').map(Number);
+    const [hIni, mIni] = cita.horaInicio.split(':').map(Number);
+    const fechaCita = new Date(year, month - 1, day, hIni, mIni);
     const minutosRestantes = (fechaCita.getTime() - ahora.getTime()) / (1000 * 60);
     if (minutosRestantes < 60) {
       throw new ConflictException('Solo se puede cancelar la cita hasta 1 hora antes de la hora agendada.');
