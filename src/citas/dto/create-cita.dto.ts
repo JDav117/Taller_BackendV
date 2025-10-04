@@ -1,4 +1,4 @@
-import { IsInt, IsDateString, IsString, IsNotEmpty, MinLength, MaxLength, IsEnum, IsOptional, Min, ValidateIf } from 'class-validator';
+import { IsInt, IsDateString, IsString, IsNotEmpty, MinLength, MaxLength, IsEnum, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum EstadoCita {
@@ -32,16 +32,12 @@ export class CreateCitaDto {
   @IsNotEmpty()
   horaFin: string; // HH:mm
 
-  @ApiPropertyOptional({ example: 'Consulta general', description: 'Motivo de la cita.' })
+  @ApiProperty({ example: 'Consulta general', description: 'Motivo de la cita.' })
   @IsString()
-  @IsOptional()
-  motivo?: string;
-
-  @ApiProperty({ example: 2, description: 'ID del usuario que agenda la cita.' })
-  @IsInt()
   @IsNotEmpty()
-  usuarioId: number;
+  motivo: string;
 
+  // El estado es opcional, el backend debe forzar PENDIENTE al crear
   @ApiPropertyOptional({ enum: EstadoCita, description: 'Estado de la cita.' })
   @IsEnum(EstadoCita)
   @IsOptional()

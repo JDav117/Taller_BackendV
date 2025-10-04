@@ -6,6 +6,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MedicosModule } from './medicos/medicos.module';
 import { CitasModule } from './citas/citas.module';
+import { UsuariosModule } from './usuarios/usuarios.module';
+import { JwtStrategy } from './auth/jwt.strategy';
 
 @Module({
   imports: [
@@ -19,10 +21,11 @@ import { CitasModule } from './citas/citas.module';
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
       synchronize: true,
     }),
+    UsuariosModule,
     MedicosModule,
     CitasModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, JwtStrategy],
 })
 export class AppModule {}

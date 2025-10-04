@@ -4,6 +4,7 @@ import { Cita } from './Entity/cita.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Medico } from '../medicos/Entity/medico.entity';
 import { EstadoCita } from './dto/create-cita.dto';
+import { CreateCitaDto } from './dto/create-cita.dto';
 
 @Injectable()
 export class CitasService {
@@ -17,12 +18,11 @@ export class CitasService {
    * - Duración mínima de 30 minutos
    * - Médico debe estar activo
    * - No debe solaparse con otra cita
-  * - Usuario debe existir
    */
-  async crearCita(cita: Cita): Promise<Cita> {
+  async crearCita(dto: CreateCitaDto, usuarioId: number): Promise<Cita> {
     // Validar horario mínimo 30 minutos y formato
-    const [hIni, mIni] = cita.horaInicio.split(':').map(Number);
-    const [hFin, mFin] = cita.horaFin.split(':').map(Number);
+    const [hIni, mIni] = dto.horaInicio.split(':').map(Number);
+    const [hFin, mFin] = dto.horaFin.split(':').map(Number);
     const ini = hIni * 60 + mIni;
     const fin = hFin * 60 + mFin;
     if (fin - ini < 30) {
@@ -34,7 +34,7 @@ export class CitasService {
 
     // Validar médico activo
     const medicoRepo = this.citaRepository.manager.getRepository(Medico);
-    const medico = await medicoRepo.findOneBy({ id: cita.medicoId });
+    const medico = await medicoRepo.findOneBy({ id: dto.medicoId });
     if (!medico) {
       throw new NotFoundException('El médico no existe.');
     }
@@ -44,11 +44,11 @@ export class CitasService {
 
     // Validar solapamiento de citas
     const citasSolapadas = await this.citaRepository.createQueryBuilder('cita')
-      .where('cita.medicoId = :medicoId', { medicoId: cita.medicoId })
-      .andWhere('cita.fecha = :fecha', { fecha: cita.fecha })
+      .where('cita.medicoId = :medicoId', { medicoId: dto.medicoId })
+      .andWhere('cita.fecha = :fecha', { fecha: dto.fecha })
       .andWhere('((:horaInicio < cita.horaFin) AND (:horaFin > cita.horaInicio))', {
-        horaInicio: cita.horaInicio,
-        horaFin: cita.horaFin,
+        horaInicio: dto.horaInicio,
+        horaFin: dto.horaFin,
       })
       .getMany();
     if (citasSolapadas.length > 0) {
@@ -56,51 +56,37 @@ export class CitasService {
     }
 
     // Estado inicial de la cita
-    cita.estado = EstadoCita.PENDIENTE;
-    if (!cita.motivo || cita.motivo.trim() === '') {
+    if (!dto.motivo || dto.motivo.trim() === '') {
       throw new BadRequestException('El motivo de la cita es obligatorio.');
     }
+
+    const cita = this.citaRepository.create({
+      ...dto,
+      usuarioId,
+      estado: EstadoCita.PENDIENTE,
+    });
 
     return await this.citaRepository.save(cita);
   }
 
-  /**
-   * Obtiene todas las citas médicas registradas en el sistema.
-   */
   async obtenerTodas(): Promise<Cita[]> {
     return await this.citaRepository.find();
   }
 
-
-  /**
-   * Actualiza los datos de una cita médica validando existencia de usuario y médico.
-   */
-  /**
-   * Actualiza los datos de una cita médica existente, validando reglas de negocio y existencia de usuario y médico.
-   */
-  async actualizarCita(id: number, citaData: Cita): Promise<Cita> {
+  async actualizarCita(id: number, dto: CreateCitaDto): Promise<Cita> {
     const cita = await this.citaRepository.findOneBy({ id });
     if (!cita) {
       throw new NotFoundException(`Cita con id ${id} no encontrada`);
     }
-    cita.fecha = citaData.fecha;
-    cita.horaInicio = citaData.horaInicio;
-    cita.horaFin = citaData.horaFin;
-    cita.motivo = citaData.motivo;
-    cita.medicoId = citaData.medicoId;
-    cita.usuarioId = citaData.usuarioId;
-    cita.estado = citaData.estado ?? cita.estado;
+    cita.fecha = dto.fecha;
+    cita.horaInicio = dto.horaInicio;
+    cita.horaFin = dto.horaFin;
+    cita.motivo = dto.motivo;
+    cita.medicoId = dto.medicoId;
+    // No se permite cambiar usuarioId ni estado aquí
     return await this.citaRepository.save(cita);
   }
 
-
-  /**
-   * Elimina una cita médica si cumple la política de cancelación:
-   * - Solo se puede cancelar hasta 1 hora antes de la cita
-   */
-  /**
-   * Elimina una cita médica por su ID si cumple con la política de cancelación (solo hasta 1 hora antes).
-   */
   async eliminarCita(id: number): Promise<boolean> {
     const cita = await this.citaRepository.findOneBy({ id });
     if (!cita) {
@@ -108,7 +94,6 @@ export class CitasService {
     }
     // Política: solo cancelar hasta 1 hora antes
     const ahora = new Date();
-    // Combinar fecha y horaInicio para obtener el Date de la cita
     const [year, month, day] = cita.fecha.split('-').map(Number);
     const [hIni, mIni] = cita.horaInicio.split(':').map(Number);
     const fechaCita = new Date(year, month - 1, day, hIni, mIni);
@@ -120,9 +105,6 @@ export class CitasService {
     return (result.affected ?? 0) > 0;
   }
 
-  /**
-   * Obtiene una cita médica por su ID.
-   */
   async obtenerPorId(id: number): Promise<Cita> {
     const cita = await this.citaRepository.findOneBy({ id });
     if (!cita) {
@@ -130,21 +112,22 @@ export class CitasService {
     }
     return cita;
   }
+
   async obtenerTodasPorUsuario(usuarioId: number): Promise<Cita[]> {
-  return await this.citaRepository.find({ where: { usuarioId } });
+    return await this.citaRepository.find({ where: { usuarioId } });
   }
 
-  async actualizarCitaUsuario(id: number, citaData: Cita, usuarioId: number): Promise<Cita> {
+  async actualizarCitaUsuario(id: number, dto: CreateCitaDto, usuarioId: number): Promise<Cita> {
     const cita = await this.citaRepository.findOneBy({ id, usuarioId });
     if (!cita) {
       throw new NotFoundException('No tienes permiso para modificar esta cita o no existe.');
     }
-    cita.fecha = citaData.fecha;
-    cita.horaInicio = citaData.horaInicio;
-    cita.horaFin = citaData.horaFin;
-    cita.motivo = citaData.motivo;
-    cita.medicoId = citaData.medicoId;
-    cita.estado = citaData.estado ?? cita.estado;
+    cita.fecha = dto.fecha;
+    cita.horaInicio = dto.horaInicio;
+    cita.horaFin = dto.horaFin;
+    cita.motivo = dto.motivo;
+    cita.medicoId = dto.medicoId;
+    // No se permite cambiar estado aquí
     return await this.citaRepository.save(cita);
   }
 
