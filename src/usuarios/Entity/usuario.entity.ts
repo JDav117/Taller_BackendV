@@ -1,7 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, Unique } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
-@Entity()
-@Unique(['email'])
+export enum RolUsuario {
+  ADMIN = 'admin',
+  USUARIO = 'usuario',
+}
+
+@Entity('usuario')
 export class Usuario {
   @PrimaryGeneratedColumn()
   id: number;
@@ -9,14 +13,14 @@ export class Usuario {
   @Column()
   nombre: string;
 
+  // Deja solo esta restricción única
   @Column({ unique: true })
   email: string;
 
   @Column()
   passwordHash: string;
 
-  @Column({ default: 'usuario' })
-  rol: 'admin' | 'usuario';
-
-  // Puedes agregar otros campos si lo necesitas
+  // Usa enum en MySQL con valor por defecto
+  @Column({ type: 'enum', enum: RolUsuario, default: RolUsuario.USUARIO })
+  rol: RolUsuario;
 }

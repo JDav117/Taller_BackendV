@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, MinLength, MaxLength, IsEmail, IsIn } from 'class-validator';
+import { IsString, IsNotEmpty, MinLength, MaxLength, IsEmail, IsIn, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateUsuarioDto {
@@ -14,15 +14,16 @@ export class CreateUsuarioDto {
   @IsNotEmpty()
   email: string;
 
-  @ApiProperty({ example: 'hashedpassword123', description: 'Hash de la contraseña del usuario.' })
+  @ApiProperty({ example: 'miclaveSegura123', description: 'Contraseña del usuario (mínimo 8 caracteres).' })
   @IsString()
   @IsNotEmpty()
   @MinLength(8)
   @MaxLength(100)
-  passwordHash: string;
+  password: string; 
 
   @ApiProperty({ example: 'usuario', description: 'Rol del usuario (admin o usuario).' })
   @IsString()
   @IsIn(['admin', 'usuario'])
-  rol: 'admin' | 'usuario';
+  @IsOptional()
+  rol?: 'admin' | 'usuario';
 }
